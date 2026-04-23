@@ -43,7 +43,7 @@ export default function AdminLogin() {
             <h1 className="font-serif text-3xl text-foreground">
               Acesso Administrativo
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">Logus Notícias</p>
+            <p className="mt-1 text-sm text-muted-foreground">Diário da Tarde</p>
           </div>
 
           <form onSubmit={handleSubmit} className="mt-7 space-y-4">

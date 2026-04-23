@@ -44,7 +44,7 @@ function formatBytes(bytes: number): string {
 }
 
 function getPdfSizeBytes(id: string): number {
-  const raw = localStorage.getItem(`logus_pdf_${id}`);
+  const raw = localStorage.getItem(`diario_pdf_${id}`);
   if (!raw) return 0;
   // rough size: base64 length * 0.75
   const commaIdx = raw.indexOf(",");
@@ -170,9 +170,9 @@ export default function Admin() {
       });
       savePdf(novo.id, pdfDataUrl);
       const list = getEdicoes().map((x) =>
-        x.id === novo.id ? { ...x, pdfKey: `logus_pdf_${novo.id}` } : x
+        x.id === novo.id ? { ...x, pdfKey: `diario_pdf_${novo.id}` } : x
       );
-      localStorage.setItem("logus_edicoes", JSON.stringify(list));
+      localStorage.setItem("diario_edicoes", JSON.stringify(list));
       toast.success("Edição publicada com sucesso!");
       resetForm();
       refresh();

@@ -1,7 +1,7 @@
-const KEY = "logus_admin_auth";
+const KEY = "diario_admin_auth";
 
 export const ADMIN_USER = "admin";
-export const ADMIN_PASS = "logus2025";
+export const ADMIN_PASS = "diario2025";
 
 export function isAdminAuthed(): boolean {
   try {

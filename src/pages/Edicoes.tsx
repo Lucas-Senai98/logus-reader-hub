@@ -44,7 +44,7 @@ export default function Edicoes() {
           Todas as Edições
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-          Navegue por todo o histórico do Logus Notícias. Clique em uma edição
+          Navegue por todo o histórico do Diário da Tarde. Clique em uma edição
           para abrir no leitor flipbook.
         </p>
       </header>

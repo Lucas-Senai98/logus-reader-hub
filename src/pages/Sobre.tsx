@@ -22,7 +22,7 @@ export default function Sobre() {
             <span className="text-accent">história</span> e propósito.
           </h1>
           <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-            Há mais de duas décadas, o Logus Notícias é uma referência em
+            Há mais de duas décadas, o Diário da Tarde é uma referência em
             jornalismo local independente. Nosso compromisso é com a verdade,
             o pluralismo e a comunidade — com pautas próximas e uma cobertura
             cuidadosa dos assuntos que moldam o cotidiano da nossa cidade.

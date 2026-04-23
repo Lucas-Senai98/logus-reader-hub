@@ -42,7 +42,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="border-t border-border py-5 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} Logus Notícias. Todos os direitos reservados.
+        © {new Date().getFullYear()} Diário da Tarde. Todos os direitos reservados.
       </div>
     </footer>
   );

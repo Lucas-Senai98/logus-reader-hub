@@ -115,7 +115,7 @@ export default function Contato() {
                 Sua Cidade / UF
               </Info>
               <Info icon={Phone}>(00) 0000-0000</Info>
-              <Info icon={Mail}>contato@logusnoticias.com.br</Info>
+              <Info icon={Mail}>contato@diario-da-tardenoticias.com.br</Info>
               <Info icon={Clock}>
                 Seg. à Sex. — 09h às 18h
                 <br />

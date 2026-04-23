@@ -222,7 +222,7 @@ export default function Leitor() {
       <div className="flex items-center justify-between border-b border-border/40 px-5 py-3">
         <div>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
-            Logus Notícias
+            Diário da Tarde
           </p>
           {id && (
             <p className="font-serif text-base text-foreground">
