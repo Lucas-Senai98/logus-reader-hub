@@ -1,10 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { HashRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Index from "./pages/Index.tsx";
-import NotFound from "./pages/NotFound.tsx";
+import SiteLayout from "./components/SiteLayout";
+import Home from "./pages/Home";
+import Edicoes from "./pages/Edicoes";
+import Sobre from "./pages/Sobre";
+import Contato from "./pages/Contato";
+import Admin from "./pages/Admin";
+import Leitor from "./pages/Leitor";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -13,13 +19,19 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <HashRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route element={<SiteLayout />}>
+            <Route path="/" element={<Home />} />
+            <Route path="/edicoes" element={<Edicoes />} />
+            <Route path="/sobre" element={<Sobre />} />
+            <Route path="/contato" element={<Contato />} />
+            <Route path="/admin" element={<Admin />} />
+          </Route>
+          <Route path="/ler/:id" element={<Leitor />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
