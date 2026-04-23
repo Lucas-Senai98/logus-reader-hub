@@ -15,8 +15,7 @@ import {
 } from "lucide-react";
 import { getEdicaoById, getPdf, formatarData } from "@/lib/storage";
 
-// Configurar o worker via CDN para evitar problemas de carregamento
-pdfjsLib.GlobalWorkerOptions.workerSrc = 
+pdfjsLib.GlobalWorkerOptions.workerSrc =
   `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 export default function Leitor() {
@@ -25,132 +24,175 @@ export default function Leitor() {
   const flipRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pageFlipRef = useRef<PageFlip | null>(null);
+  const pageFlipInitTimeoutRef = useRef<number | null>(null);
+  const pageFlipSessionRef = useRef(0);
+  const currentPageRef = useRef(0);
 
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Carregando PDF...");
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [pages, setPages] = useState<string[]>([]); // Agora armazenando URLs das imagens
-  const [zoom, setZoom] = useState(1);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [pages, setPages] = useState<string[]>([]);
 
-  // Função para converter base64 para Uint8Array
+  const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [lastPosition, setLastPosition] = useState({ x: 0, y: 0 });
+  const [lastPinchDistance, setLastPinchDistance] = useState<number | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPageFlipReady, setIsPageFlipReady] = useState(false);
+
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
+
   const base64ToUint8Array = (base64String: string) => {
-    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
     const base64 = (base64String + padding)
-      .replace(/\-/g, '+')
-      .replace(/_/g, '/');
-    
+      .replace(/\-/g, "+")
+      .replace(/_/g, "/");
+
     const rawData = atob(base64);
     const outputArray = new Uint8Array(rawData.length);
-    
+
     for (let i = 0; i < rawData.length; ++i) {
       outputArray[i] = rawData.charCodeAt(i);
     }
+
     return outputArray;
   };
 
-  // Função para carregar o PDF
-  const loadPDF = async (base64String: string) => {
-    // Remover o prefixo data:application/pdf;base64,
-    const base64Data = base64String.split(',')[1];
-    
-    // Converter base64 para Uint8Array
-    const bytes = base64ToUint8Array(base64Data);
-    
-    // Carregar com PDF.js
-    const loadingTask = pdfjsLib.getDocument({ data: bytes });
-    const pdf = await loadingTask.promise;
-    return pdf;
+  const toggleZoomMode = () => {
+    if (scale > 1) {
+      setScale(1);
+      setPosition({ x: 0, y: 0 });
+      setLastPosition({ x: 0, y: 0 });
+      return;
+    }
+
+    setScale(1.5);
   };
 
-  // Função para renderizar uma página específica
+  const loadPDF = async (base64String: string) => {
+    const base64Data = base64String.split(",")[1];
+    const bytes = base64ToUint8Array(base64Data);
+    const loadingTask = pdfjsLib.getDocument({ data: bytes });
+    return loadingTask.promise;
+  };
+
   const renderPage = async (pdf: any, pageNumber: number): Promise<string> => {
     const page = await pdf.getPage(pageNumber);
-    
-    // Escala para boa qualidade visual
-    const scale = 1.5;
-    const viewport = page.getViewport({ scale });
-    
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    
+    const renderScale = 1.5;
+    const viewport = page.getViewport({ scale: renderScale });
+
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
     canvas.height = viewport.height;
     canvas.width = viewport.width;
-    
+
     await page.render({
       canvasContext: context!,
-      viewport: viewport,
+      viewport,
     }).promise;
-    
-    // Retornar a URL da imagem em vez do canvas
-    return canvas.toDataURL('image/jpeg', 0.85);
+
+    return canvas.toDataURL("image/jpeg", 0.85);
   };
 
   useEffect(() => {
     const initReader = async () => {
       setLoading(true);
       setLoadingMessage("Carregando PDF...");
-      
+      setError(null);
+
       try {
-        // 1. Buscar PDF do localStorage
-        const edicao = getEdicaoById(id!);
         const pdfBase64 = getPdf(id!);
-        
+
         if (!pdfBase64) {
-          setError('PDF não encontrado.');
+          setError("PDF não encontrado.");
           setLoading(false);
           return;
         }
-        
-        // 2. Carregar PDF
+
         setLoadingMessage("Processando PDF...");
         const pdf = await loadPDF(pdfBase64);
-        const totalPages = pdf.numPages;
-        setTotalPages(totalPages);
-        
-        // 3. Renderizar TODAS as páginas antes de inicializar o flipbook
+        const pageCount = pdf.numPages;
         const pageImages: string[] = [];
-        for (let i = 1; i <= totalPages; i++) {
-          setLoadingMessage(`Carregando página ${i} de ${totalPages}...`);
+
+        setTotalPages(pageCount);
+
+        for (let i = 1; i <= pageCount; i++) {
+          setLoadingMessage(`Carregando página ${i} de ${pageCount}...`);
           const imageUrl = await renderPage(pdf, i);
           pageImages.push(imageUrl);
         }
-        
-        setPages(pageImages); // salvar no estado
+
+        setPages(pageImages);
+        setCurrentPage(pageCount > 0 ? 1 : 0);
         setLoading(false);
-        
       } catch (err) {
-        console.error('Erro ao carregar PDF:', err);
-        setError('Erro ao carregar o PDF. Tente novamente.');
+        console.error("Erro ao carregar PDF:", err);
+        setError("Erro ao carregar o PDF. Tente novamente.");
         setLoading(false);
       }
     };
-    
+
     if (id) {
       initReader();
     }
   }, [id]);
 
-  // Inicializar o PageFlip após ter todas as páginas renderizadas
-  useEffect(() => {
-    if (pages.length === 0 || !flipRef.current) return;
-    
-    // Limpar instância anterior se existir
-    if (pageFlipRef.current) {
-      try {
-        pageFlipRef.current.destroy();
-      } catch {}
+  const destroyPageFlip = () => {
+    pageFlipSessionRef.current += 1;
+
+    if (pageFlipInitTimeoutRef.current !== null) {
+      window.clearTimeout(pageFlipInitTimeoutRef.current);
+      pageFlipInitTimeoutRef.current = null;
     }
-    
-    // Aguardar um pouco para garantir que o DOM esteja pronto
-    setTimeout(() => {
-      const containerW = containerRef.current?.clientWidth || 0;
-      const containerH = containerRef.current?.clientHeight || 0;
+
+    setIsPageFlipReady(false);
+
+    const instance = pageFlipRef.current;
+    pageFlipRef.current = null;
+
+    if (instance) {
+      try {
+        instance.destroy();
+      } catch {
+        // Ignora falhas do teardown da biblioteca.
+      }
+    }
+
+    if (flipRef.current) {
+      flipRef.current.innerHTML = "";
+    }
+  };
+
+  const updatePageFlip = () => {
+    destroyPageFlip();
+
+    if (pages.length === 0 || scale > 1 || !flipRef.current || !containerRef.current) {
+      return;
+    }
+
+    const session = pageFlipSessionRef.current;
+
+    pageFlipInitTimeoutRef.current = window.setTimeout(() => {
+      if (
+        session !== pageFlipSessionRef.current ||
+        scale > 1 ||
+        !flipRef.current ||
+        !containerRef.current
+      ) {
+        return;
+      }
+
+      const containerW = containerRef.current.clientWidth || 0;
+      const containerH = containerRef.current.clientHeight || 0;
       const isMobile = window.innerWidth < 768;
 
-      // calcula dimensões mantendo proporção A4 (1 / 1.4142)
       const ratio = 1 / 1.4142;
       const usableH = containerH - 40;
       const usableW = containerW - 40;
@@ -160,23 +202,21 @@ export default function Leitor() {
 
       const spreadW = isMobile ? pageW : pageW * 2;
       if (spreadW > usableW) {
-        const scale = usableW / spreadW;
-        pageW *= scale;
-        pageH *= scale;
+        const scaleValue = usableW / spreadW;
+        pageW *= scaleValue;
+        pageH *= scaleValue;
       }
 
-      // Limpar o container antes de adicionar novas páginas
-      flipRef.current!.innerHTML = "";
-      
-      // Adiciona cada imagem como elemento de página
+      flipRef.current.innerHTML = "";
+
       pages.forEach((imgSrc, idx) => {
         const div = document.createElement("div");
         div.className = "page";
-        div.innerHTML = `<img src="${imgSrc}" alt="Página ${idx+1}" style="width: 100%; height: 100%; object-fit: contain;" />`;
+        div.innerHTML = `<img src="${imgSrc}" alt="Página ${idx + 1}" style="width: 100%; height: 100%; object-fit: contain;" />`;
         flipRef.current!.appendChild(div);
       });
 
-      const pf = new PageFlip(flipRef.current!, {
+      const pf = new PageFlip(flipRef.current, {
         width: Math.floor(pageW),
         height: Math.floor(pageH),
         size: "fixed" as never,
@@ -186,37 +226,93 @@ export default function Leitor() {
         usePortrait: isMobile,
         drawShadow: true,
         flippingTime: 700,
+        startPage: Math.max(0, currentPageRef.current - 1),
       });
 
-      // Carrega as páginas como elementos HTML
-      pf.loadFromHTML(flipRef.current!.querySelectorAll(".page"));
+      pf.on("init", () => {
+        if (session !== pageFlipSessionRef.current) return;
+        setIsPageFlipReady(true);
+        setCurrentPage(pf.getCurrentPageIndex() + 1);
+      });
 
       pf.on("flip", (e) => {
+        if (session !== pageFlipSessionRef.current) return;
         setCurrentPage((e.data as number) + 1);
       });
 
-      pageFlipRef.current = pf;
-      setCurrentPage(1);
-    }, 100); // Pequeno delay para garantir que o DOM esteja pronto
-  }, [pages]);
+      pf.loadFromHTML(Array.from(flipRef.current.children) as HTMLElement[]);
 
-  // Teclado ← →
+      if (session !== pageFlipSessionRef.current) {
+        try {
+          pf.destroy();
+        } catch {
+          // Ignora se a troca de sessão ocorrer durante a inicialização.
+        }
+        return;
+      }
+
+      pageFlipRef.current = pf;
+    }, 100);
+  };
+
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "ArrowRight") pageFlipRef.current?.flipNext();
-      if (e.key === "ArrowLeft") pageFlipRef.current?.flipPrev();
-      if (e.key === "Escape" && document.fullscreenElement)
-        document.exitFullscreen();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    updatePageFlip();
+  }, [pages, scale]);
+
+  useEffect(() => {
+    return () => {
+      destroyPageFlip();
+    };
   }, []);
 
-  // Fullscreen tracking
+  const handlePageFlipNavigation = (direction: "next" | "prev") => {
+    if (scale > 1 || !isPageFlipReady) return false;
+
+    const instance = pageFlipRef.current;
+    if (!instance) return false;
+
+    try {
+      if (!instance.getFlipController()) {
+        return false;
+      }
+
+      if (direction === "next") {
+        instance.flipNext();
+      } else {
+        instance.flipPrev();
+      }
+
+      return true;
+    } catch (error) {
+      console.warn(`Erro ao navegar com PageFlip (${direction}):`, error);
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "ArrowRight") {
+        handlePageFlipNavigation("next");
+      }
+
+      if (e.key === "ArrowLeft") {
+        handlePageFlipNavigation("prev");
+      }
+
+      if (e.key === "Escape" && document.fullscreenElement) {
+        document.exitFullscreen();
+      }
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isPageFlipReady, scale]);
+
   useEffect(() => {
     function onFs() {
       setIsFullscreen(!!document.fullscreenElement);
     }
+
     document.addEventListener("fullscreenchange", onFs);
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
@@ -231,27 +327,176 @@ export default function Leitor() {
 
   function downloadPdf() {
     if (!id) return;
+
     const pdf = getPdf(id);
     if (!pdf) return;
+
     const a = document.createElement("a");
     a.href = pdf;
     a.download = `${getEdicaoById(id)?.titulo ?? "edicao"}.pdf`;
     a.click();
   }
 
-  function changeZoom(delta: number) {
-    setZoom((z) => {
-      const next = Math.max(0.6, Math.min(2, z + delta));
-      if (flipRef.current) {
-        flipRef.current.style.transform = `scale(${next})`;
+  const clampPosition = (pos: { x: number; y: number }, currentScale: number) => {
+    if (currentScale <= 1) return { x: 0, y: 0 };
+
+    const container = containerRef.current;
+    if (!container) return pos;
+
+    const maxX = (container.clientWidth * (currentScale - 1)) / 2 + 100;
+    const maxY = (container.clientHeight * (currentScale - 1)) / 2 + 100;
+
+    return {
+      x: Math.min(maxX, Math.max(-maxX, pos.x)),
+      y: Math.min(maxY, Math.max(-maxY, pos.y)),
+    };
+  };
+
+  const getPinchDistance = (touches: TouchList) => {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (scale <= 1) return;
+
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX - lastPosition.x,
+      y: e.clientY - lastPosition.y,
+    });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || scale <= 1) return;
+
+    e.preventDefault();
+
+    const newPos = {
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y,
+    };
+
+    setPosition(clampPosition(newPos, scale));
+  };
+
+  const handleMouseUp = () => {
+    if (!isDragging) return;
+
+    setLastPosition(position);
+    setIsDragging(false);
+  };
+
+  const handleMouseLeave = () => {
+    if (!isDragging) return;
+
+    setLastPosition(position);
+    setIsDragging(false);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1 && scale > 1) {
+      setIsDragging(true);
+      setDragStart({
+        x: e.touches[0].clientX - lastPosition.x,
+        y: e.touches[0].clientY - lastPosition.y,
+      });
+      return;
+    }
+
+    if (e.touches.length === 2) {
+      setIsDragging(false);
+      setLastPinchDistance(getPinchDistance(e.touches));
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+
+    if (e.touches.length === 1 && isDragging && scale > 1) {
+      const newPos = {
+        x: e.touches[0].clientX - dragStart.x,
+        y: e.touches[0].clientY - dragStart.y,
+      };
+
+      setPosition(clampPosition(newPos, scale));
+      return;
+    }
+
+    if (e.touches.length === 2 && lastPinchDistance !== null) {
+      const currentDistance = getPinchDistance(e.touches);
+      const delta = currentDistance / lastPinchDistance;
+      const newScale = Math.min(4, Math.max(1, scale * delta));
+
+      setScale(newScale);
+      setLastPinchDistance(currentDistance);
+
+      if (newScale <= 1) {
+        setPosition({ x: 0, y: 0 });
+        setLastPosition({ x: 0, y: 0 });
+      } else {
+        const clamped = clampPosition(position, newScale);
+        setPosition(clamped);
+        setLastPosition(clamped);
       }
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (e.changedTouches.length === 0) {
+      setLastPosition(position);
+      setIsDragging(false);
+      setLastPinchDistance(null);
+      return;
+    }
+
+    if (e.touches.length < 2) {
+      setLastPinchDistance(null);
+    }
+  };
+
+  const handleZoomIn = () => {
+    setScale((prev) => Math.min(4, parseFloat((prev + 0.25).toFixed(2))));
+  };
+
+  const handleZoomOut = () => {
+    setScale((prev) => {
+      const next = Math.max(1, parseFloat((prev - 0.25).toFixed(2)));
+
+      if (next <= 1) {
+        setPosition({ x: 0, y: 0 });
+        setLastPosition({ x: 0, y: 0 });
+      }
+
       return next;
     });
-  }
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+
+    const delta = e.deltaY > 0 ? -0.15 : 0.15;
+
+    setScale((prev) => {
+      const next = Math.min(4, Math.max(1, parseFloat((prev + delta).toFixed(2))));
+
+      if (next <= 1) {
+        setPosition({ x: 0, y: 0 });
+        setLastPosition({ x: 0, y: 0 });
+      }
+
+      return next;
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-[#0a0a0f] text-foreground">
-      {/* Top bar */}
       <div className="flex items-center justify-between border-b border-border/40 px-5 py-3">
         <div>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
@@ -266,6 +511,7 @@ export default function Leitor() {
             </p>
           )}
         </div>
+
         <button
           onClick={() => navigate("/")}
           aria-label="Voltar para o site"
@@ -275,30 +521,38 @@ export default function Leitor() {
         </button>
       </div>
 
-      {/* Reader */}
       <div
         ref={containerRef}
-        className="relative flex flex-1 items-center justify-center overflow-hidden min-h-[70vh]"
+        className="relative flex flex-1 items-center justify-center overflow-hidden"
+        style={{
+          minHeight: "70vh",
+          cursor: scale > 1 ? (isDragging ? "grabbing" : "grab") : "default",
+          touchAction: "none",
+        }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onWheel={handleWheel}
       >
         {loading && (
           <div className="absolute inset-0 z-10 grid place-items-center bg-[#0a0a0f]/95">
             <div className="flex flex-col items-center gap-4 text-center">
               <Loader2 className="h-10 w-10 animate-spin text-accent" />
               <p className="font-serif text-xl text-foreground">
-                Preparando sua leitura…
+                Preparando sua leitura...
               </p>
-              <p className="text-sm text-muted-foreground">
-                {loadingMessage}
-              </p>
+              <p className="text-sm text-muted-foreground">{loadingMessage}</p>
             </div>
           </div>
         )}
 
         {error && (
           <div className="grid place-items-center px-6 text-center">
-            <p className="max-w-md font-serif text-2xl text-foreground">
-              {error}
-            </p>
+            <p className="max-w-md font-serif text-2xl text-foreground">{error}</p>
             <button
               onClick={() => navigate("/")}
               className="mt-6 rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground"
@@ -309,32 +563,73 @@ export default function Leitor() {
         )}
 
         <div
-          ref={flipRef}
-          className="paper-tex transition-transform duration-300"
           style={{
+            transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
             transformOrigin: "center center",
-            filter: "drop-shadow(0 30px 60px rgba(0,0,0,0.6))",
+            transition: isDragging ? "none" : "transform 0.15s ease-out",
+            willChange: "transform",
           }}
-        />
+        >
+          {scale === 1 && (
+            <div
+              ref={flipRef}
+              className="paper-tex transition-transform duration-300"
+              style={{
+                transformOrigin: "center center",
+                filter: "drop-shadow(0 30px 60px rgba(0,0,0,0.6))",
+              }}
+            />
+          )}
+
+          {scale > 1 && pages.length > 0 && currentPage > 0 && (
+            <div
+              className="paper-tex transition-transform duration-300"
+              style={{
+                transformOrigin: "center center",
+                filter: "drop-shadow(0 30px 60px rgba(0,0,0,0.6))",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <img
+                src={pages[currentPage - 1]}
+                alt={`Página ${currentPage}`}
+                style={{ maxWidth: "100%", maxHeight: "80vh", objectFit: "contain" }}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Bottom controls */}
       {!error && (
         <div className="flex items-center justify-center gap-1 border-t border-border/40 bg-[#0a0a0f]/95 px-4 py-3">
           <ToolbarBtn
-            onClick={() => pageFlipRef.current?.flipPrev()}
+            onClick={() => {
+              if (scale <= 1) {
+                handlePageFlipNavigation("prev");
+              } else if (currentPage > 1) {
+                setCurrentPage((prev) => Math.max(1, prev - 1));
+              }
+            }}
             label="Página anterior"
           >
             <ChevronLeft className="h-4 w-4" />
           </ToolbarBtn>
 
           <div className="px-4 text-sm tabular-nums text-muted-foreground">
-            Pág. <span className="text-foreground">{currentPage || "—"}</span>{" "}
-            / {totalPages || "—"}
+            Pág. <span className="text-foreground">{currentPage || "—"}</span> /{" "}
+            {totalPages || "—"}
           </div>
 
           <ToolbarBtn
-            onClick={() => pageFlipRef.current?.flipNext()}
+            onClick={() => {
+              if (scale <= 1) {
+                handlePageFlipNavigation("next");
+              } else if (currentPage < totalPages) {
+                setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+              }
+            }}
             label="Próxima página"
           >
             <ChevronRight className="h-4 w-4" />
@@ -342,13 +637,22 @@ export default function Leitor() {
 
           <span className="mx-2 h-6 w-px bg-border" />
 
-          <ToolbarBtn onClick={() => changeZoom(-0.1)} label="Diminuir zoom">
+          <ToolbarBtn
+            onClick={toggleZoomMode}
+            label={scale <= 1 ? "Entrar no modo zoom" : "Sair do modo zoom"}
+          >
+            {scale <= 1 ? <ZoomIn className="h-4 w-4" /> : <ZoomOut className="h-4 w-4" />}
+          </ToolbarBtn>
+
+          <ToolbarBtn onClick={handleZoomOut} label="Diminuir zoom">
             <ZoomOut className="h-4 w-4" />
           </ToolbarBtn>
+
           <div className="w-12 text-center text-xs tabular-nums text-muted-foreground">
-            {Math.round(zoom * 100)}%
+            {Math.round(scale * 100)}%
           </div>
-          <ToolbarBtn onClick={() => changeZoom(0.1)} label="Aumentar zoom">
+
+          <ToolbarBtn onClick={handleZoomIn} label="Aumentar zoom">
             <ZoomIn className="h-4 w-4" />
           </ToolbarBtn>
 
@@ -361,6 +665,7 @@ export default function Leitor() {
               <Maximize2 className="h-4 w-4" />
             )}
           </ToolbarBtn>
+
           <ToolbarBtn onClick={downloadPdf} label="Baixar PDF">
             <Download className="h-4 w-4" />
           </ToolbarBtn>
