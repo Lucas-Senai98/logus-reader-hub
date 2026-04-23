@@ -131,5 +131,4 @@ All colors MUST be HSL.
   background: linear-gradient(90deg, hsl(var(--muted)) 0%, hsl(var(--muted) / 0.5) 50%, hsl(var(--muted)) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.5s linear infinite;
-  }
 }
