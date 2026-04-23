@@ -86,8 +86,7 @@ export default function Leitor() {
           canvas.width = scaled.width;
           canvas.height = scaled.height;
           const ctx = canvas.getContext("2d")!;
-          await page.render({ canvasContext: ctx, viewport: scaled, canvas })
-            .promise;
+          await page.render({ canvasContext: ctx, viewport: scaled }).promise;
           pageImages.push(canvas.toDataURL("image/jpeg", 0.85));
           if (cancelled) return;
           setProgress({ cur: p, total: pdf.numPages });
