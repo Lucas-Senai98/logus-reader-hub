@@ -9,6 +9,8 @@ import Edicoes from "./pages/Edicoes";
 import Sobre from "./pages/Sobre";
 import Contato from "./pages/Contato";
 import Admin from "./pages/Admin";
+import AdminLogin from "./pages/AdminLogin";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Leitor from "./pages/Leitor";
 import NotFound from "./pages/NotFound";
 
@@ -26,8 +28,16 @@ const App = () => (
             <Route path="/edicoes" element={<Edicoes />} />
             <Route path="/sobre" element={<Sobre />} />
             <Route path="/contato" element={<Contato />} />
-            <Route path="/admin" element={<Admin />} />
           </Route>
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <Admin />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/ler/:id" element={<Leitor />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
