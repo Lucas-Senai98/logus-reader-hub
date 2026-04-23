@@ -7,7 +7,7 @@ export default function Logo() {
         className="grid h-11 w-11 place-items-center rounded-md bg-primary font-serif text-2xl font-bold text-primary-foreground shadow-[var(--shadow-red-soft)] transition-transform group-hover:scale-105"
         aria-hidden="true"
       >
-        L
+        D
       </div>
       <div className="flex flex-col leading-tight">
         <span className="font-serif text-lg font-bold tracking-tight text-foreground">
