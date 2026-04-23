@@ -10,7 +10,7 @@ export interface Edicao {
   demo?: boolean;
 }
 
-const KEY = "logus_edicoes";
+const KEY = "diario_edicoes";
 
 const SEED: Edicao[] = [
   {
@@ -66,7 +66,7 @@ export function removeEdicao(id: string) {
   const list = getEdicoes().filter((e) => e.id !== id);
   saveEdicoes(list);
   // remove pdf
-  const pdfKey = `logus_pdf_${id}`;
+  const pdfKey = `diario_pdf_${id}`;
   localStorage.removeItem(pdfKey);
 }
 
@@ -75,11 +75,11 @@ export function getEdicaoById(id: string): Edicao | undefined {
 }
 
 export function getPdf(id: string): string | null {
-  return localStorage.getItem(`logus_pdf_${id}`);
+  return localStorage.getItem(`diario_pdf_${id}`);
 }
 
 export function savePdf(id: string, dataUrl: string) {
-  localStorage.setItem(`logus_pdf_${id}`, dataUrl);
+  localStorage.setItem(`diario_pdf_${id}`, dataUrl);
 }
 
 export function formatarData(iso: string): string {

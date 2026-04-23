@@ -11,10 +11,10 @@ export default function Logo() {
       </div>
       <div className="flex flex-col leading-tight">
         <span className="font-serif text-lg font-bold tracking-tight text-foreground">
-          Logus Notícias
+          Diário da Tarde
         </span>
         <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">
-          Seu jornal local
+          O jornal do seu dia
         </span>
       </div>
     </Link>
