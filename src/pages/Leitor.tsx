@@ -15,11 +15,9 @@ import {
 } from "lucide-react";
 import { getEdicaoById, getPdf, formatarData } from "@/lib/storage";
 
-// Aponta para o worker estático em /public — funciona com base "./" no cPanel
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
+// Configurar o worker via CDN para evitar problemas de carregamento
+pdfjsLib.GlobalWorkerOptions.workerSrc = 
+  `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 export default function Leitor() {
   const { id } = useParams<{ id: string }>();
@@ -29,143 +27,178 @@ export default function Leitor() {
   const pageFlipRef = useRef<PageFlip | null>(null);
 
   const [loading, setLoading] = useState(true);
-  const [progress, setProgress] = useState({ cur: 0, total: 0 });
+  const [loadingMessage, setLoadingMessage] = useState("Carregando PDF...");
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [pages, setPages] = useState<string[]>([]); // Agora armazenando URLs das imagens
   const [zoom, setZoom] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Função para converter base64 para Uint8Array
+  const base64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding)
+      .replace(/\-/g, '+')
+      .replace(/_/g, '/');
+    
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  // Função para carregar o PDF
+  const loadPDF = async (base64String: string) => {
+    // Remover o prefixo data:application/pdf;base64,
+    const base64Data = base64String.split(',')[1];
+    
+    // Converter base64 para Uint8Array
+    const bytes = base64ToUint8Array(base64Data);
+    
+    // Carregar com PDF.js
+    const loadingTask = pdfjsLib.getDocument({ data: bytes });
+    const pdf = await loadingTask.promise;
+    return pdf;
+  };
+
+  // Função para renderizar uma página específica
+  const renderPage = async (pdf: any, pageNumber: number): Promise<string> => {
+    const page = await pdf.getPage(pageNumber);
+    
+    // Escala para boa qualidade visual
+    const scale = 1.5;
+    const viewport = page.getViewport({ scale });
+    
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    
+    await page.render({
+      canvasContext: context!,
+      viewport: viewport,
+    }).promise;
+    
+    // Retornar a URL da imagem em vez do canvas
+    return canvas.toDataURL('image/jpeg', 0.85);
+  };
+
   useEffect(() => {
-    let cancelled = false;
-    if (!id) return;
-
-    const edicao = getEdicaoById(id);
-    if (!edicao) {
-      setError("Edição não encontrada.");
-      setLoading(false);
-      return;
-    }
-
-    const pdfData = getPdf(id);
-    if (!pdfData) {
-      setError(
-        edicao.demo
-          ? "PDF de demonstração não disponível. Acesse o Admin para publicar edições reais."
-          : "PDF não encontrado para esta edição."
-      );
-      setLoading(false);
-      return;
-    }
-
-    (async () => {
+    const initReader = async () => {
+      setLoading(true);
+      setLoadingMessage("Carregando PDF...");
+      
       try {
-        // base64 → Uint8Array
-        const base64 = pdfData.split(",")[1];
-        const bin = atob(base64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-
-        const loadingTask = pdfjsLib.getDocument({ data: bytes });
-        const pdf = await loadingTask.promise;
-        if (cancelled) return;
-
-        setProgress({ cur: 0, total: pdf.numPages });
-
-        // Render every page to a canvas and convert to image data URL
-        const pageImages: string[] = [];
-        const targetWidth = 900; // resolução
-
-        for (let p = 1; p <= pdf.numPages; p++) {
-          const page = await pdf.getPage(p);
-          const viewport = page.getViewport({ scale: 1 });
-          const scale = targetWidth / viewport.width;
-          const scaled = page.getViewport({ scale });
-
-          const canvas = document.createElement("canvas");
-          canvas.width = scaled.width;
-          canvas.height = scaled.height;
-          const ctx = canvas.getContext("2d")!;
-          await page.render({ canvasContext: ctx, viewport: scaled }).promise;
-          pageImages.push(canvas.toDataURL("image/jpeg", 0.85));
-          if (cancelled) return;
-          setProgress({ cur: p, total: pdf.numPages });
+        // 1. Buscar PDF do localStorage
+        const edicao = getEdicaoById(id!);
+        const pdfBase64 = getPdf(id!);
+        
+        if (!pdfBase64) {
+          setError('PDF não encontrado.');
+          setLoading(false);
+          return;
         }
-
-        if (cancelled) return;
-
-        // Build flipbook
-        await initFlipbook(pageImages);
-        setTotalPages(pageImages.length);
+        
+        // 2. Carregar PDF
+        setLoadingMessage("Processando PDF...");
+        const pdf = await loadPDF(pdfBase64);
+        const totalPages = pdf.numPages;
+        setTotalPages(totalPages);
+        
+        // 3. Renderizar TODAS as páginas antes de inicializar o flipbook
+        const pageImages: string[] = [];
+        for (let i = 1; i <= totalPages; i++) {
+          setLoadingMessage(`Carregando página ${i} de ${totalPages}...`);
+          const imageUrl = await renderPage(pdf, i);
+          pageImages.push(imageUrl);
+        }
+        
+        setPages(pageImages); // salvar no estado
         setLoading(false);
+        
       } catch (err) {
-        console.error("Erro ao carregar PDF", err);
-        setError("Falha ao processar o PDF.");
+        console.error('Erro ao carregar PDF:', err);
+        setError('Erro ao carregar o PDF. Tente novamente.');
         setLoading(false);
       }
-    })();
-
-    return () => {
-      cancelled = true;
-      try {
-        pageFlipRef.current?.destroy();
-      } catch {}
-      pageFlipRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
+    if (id) {
+      initReader();
+    }
   }, [id]);
 
-  async function initFlipbook(images: string[]) {
-    if (!flipRef.current || !containerRef.current) return;
-
-    const containerW = containerRef.current.clientWidth;
-    const containerH = containerRef.current.clientHeight;
-    const isMobile = window.innerWidth < 768;
-
-    // calcula dimensões mantendo proporção A4 (1 / 1.4142)
-    const ratio = 1 / 1.4142;
-    const usableH = containerH - 40;
-    const usableW = containerW - 40;
-
-    let pageH = usableH;
-    let pageW = pageH * ratio;
-
-    const spreadW = isMobile ? pageW : pageW * 2;
-    if (spreadW > usableW) {
-      const scale = usableW / spreadW;
-      pageW *= scale;
-      pageH *= scale;
+  // Inicializar o PageFlip após ter todas as páginas renderizadas
+  useEffect(() => {
+    if (pages.length === 0 || !flipRef.current) return;
+    
+    // Limpar instância anterior se existir
+    if (pageFlipRef.current) {
+      try {
+        pageFlipRef.current.destroy();
+      } catch {}
     }
+    
+    // Aguardar um pouco para garantir que o DOM esteja pronto
+    setTimeout(() => {
+      const containerW = containerRef.current?.clientWidth || 0;
+      const containerH = containerRef.current?.clientHeight || 0;
+      const isMobile = window.innerWidth < 768;
 
-    flipRef.current.innerHTML = "";
-    images.forEach((src) => {
-      const div = document.createElement("div");
-      div.className = "page";
-      div.style.background = `#fff url(${src}) center/contain no-repeat`;
-      flipRef.current!.appendChild(div);
-    });
+      // calcula dimensões mantendo proporção A4 (1 / 1.4142)
+      const ratio = 1 / 1.4142;
+      const usableH = containerH - 40;
+      const usableW = containerW - 40;
 
-    const pf = new PageFlip(flipRef.current, {
-      width: Math.floor(pageW),
-      height: Math.floor(pageH),
-      size: "fixed" as never,
-      maxShadowOpacity: 0.5,
-      showCover: true,
-      mobileScrollSupport: true,
-      usePortrait: isMobile,
-      drawShadow: true,
-      flippingTime: 700,
-    });
+      let pageH = usableH;
+      let pageW = pageH * ratio;
 
-    pf.loadFromHTML(flipRef.current.querySelectorAll(".page"));
+      const spreadW = isMobile ? pageW : pageW * 2;
+      if (spreadW > usableW) {
+        const scale = usableW / spreadW;
+        pageW *= scale;
+        pageH *= scale;
+      }
 
-    pf.on("flip", (e) => {
-      setCurrentPage((e.data as number) + 1);
-    });
+      // Limpar o container antes de adicionar novas páginas
+      flipRef.current!.innerHTML = "";
+      
+      // Adiciona cada imagem como elemento de página
+      pages.forEach((imgSrc, idx) => {
+        const div = document.createElement("div");
+        div.className = "page";
+        div.innerHTML = `<img src="${imgSrc}" alt="Página ${idx+1}" style="width: 100%; height: 100%; object-fit: contain;" />`;
+        flipRef.current!.appendChild(div);
+      });
 
-    pageFlipRef.current = pf;
-    setCurrentPage(1);
-  }
+      const pf = new PageFlip(flipRef.current!, {
+        width: Math.floor(pageW),
+        height: Math.floor(pageH),
+        size: "fixed" as never,
+        maxShadowOpacity: 0.5,
+        showCover: true,
+        mobileScrollSupport: true,
+        usePortrait: isMobile,
+        drawShadow: true,
+        flippingTime: 700,
+      });
+
+      // Carrega as páginas como elementos HTML
+      pf.loadFromHTML(flipRef.current!.querySelectorAll(".page"));
+
+      pf.on("flip", (e) => {
+        setCurrentPage((e.data as number) + 1);
+      });
+
+      pageFlipRef.current = pf;
+      setCurrentPage(1);
+    }, 100); // Pequeno delay para garantir que o DOM esteja pronto
+  }, [pages]);
 
   // Teclado ← →
   useEffect(() => {
@@ -245,7 +278,7 @@ export default function Leitor() {
       {/* Reader */}
       <div
         ref={containerRef}
-        className="relative flex flex-1 items-center justify-center overflow-hidden"
+        className="relative flex flex-1 items-center justify-center overflow-hidden min-h-[70vh]"
       >
         {loading && (
           <div className="absolute inset-0 z-10 grid place-items-center bg-[#0a0a0f]/95">
@@ -254,21 +287,9 @@ export default function Leitor() {
               <p className="font-serif text-xl text-foreground">
                 Preparando sua leitura…
               </p>
-              {progress.total > 0 && (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    Carregando página {progress.cur} de {progress.total}
-                  </p>
-                  <div className="h-1.5 w-64 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full bg-primary transition-all"
-                      style={{
-                        width: `${(progress.cur / progress.total) * 100}%`,
-                      }}
-                    />
-                  </div>
-                </>
-              )}
+              <p className="text-sm text-muted-foreground">
+                {loadingMessage}
+              </p>
             </div>
           </div>
         )}
