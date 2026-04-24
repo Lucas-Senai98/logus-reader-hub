@@ -13,7 +13,7 @@ import {
   ZoomOut,
   Loader2,
 } from "lucide-react";
-import { getEdicaoById, getPdf, formatarData } from "@/lib/storage";
+import { Edicao, getEdicaoById, formatarData } from "@/lib/storage";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -31,6 +31,7 @@ export default function Leitor() {
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Carregando PDF...");
   const [error, setError] = useState<string | null>(null);
+  const [edicao, setEdicao] = useState<Edicao | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [pages, setPages] = useState<string[]>([]);
@@ -48,22 +49,6 @@ export default function Leitor() {
     currentPageRef.current = currentPage;
   }, [currentPage]);
 
-  const base64ToUint8Array = (base64String: string) => {
-    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding)
-      .replace(/\-/g, "+")
-      .replace(/_/g, "/");
-
-    const rawData = atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i);
-    }
-
-    return outputArray;
-  };
-
   const toggleZoomMode = () => {
     if (scale > 1) {
       setScale(1);
@@ -75,10 +60,8 @@ export default function Leitor() {
     setScale(1.5);
   };
 
-  const loadPDF = async (base64String: string) => {
-    const base64Data = base64String.split(",")[1];
-    const bytes = base64ToUint8Array(base64Data);
-    const loadingTask = pdfjsLib.getDocument({ data: bytes });
+  const loadPDF = async (pdfUrl: string) => {
+    const loadingTask = pdfjsLib.getDocument(pdfUrl);
     return loadingTask.promise;
   };
 
@@ -102,46 +85,64 @@ export default function Leitor() {
   };
 
   useEffect(() => {
-    const initReader = async () => {
+    let active = true;
+
+    async function initReader() {
       setLoading(true);
       setLoadingMessage("Carregando PDF...");
       setError(null);
 
       try {
-        const pdfBase64 = getPdf(id!);
+        if (!id) {
+          throw new Error("Edicao nao informada.");
+        }
 
-        if (!pdfBase64) {
-          setError("PDF não encontrado.");
+        const currentEdicao = await getEdicaoById(id);
+
+        if (!active) return;
+
+        if (!currentEdicao || !currentEdicao.pdfUrl) {
+          setError("PDF nao encontrado.");
           setLoading(false);
           return;
         }
 
+        setEdicao(currentEdicao);
         setLoadingMessage("Processando PDF...");
-        const pdf = await loadPDF(pdfBase64);
+
+        const pdf = await loadPDF(currentEdicao.pdfUrl);
         const pageCount = pdf.numPages;
         const pageImages: string[] = [];
+
+        if (!active) return;
 
         setTotalPages(pageCount);
 
         for (let i = 1; i <= pageCount; i++) {
-          setLoadingMessage(`Carregando página ${i} de ${pageCount}...`);
+          setLoadingMessage(`Carregando pagina ${i} de ${pageCount}...`);
           const imageUrl = await renderPage(pdf, i);
           pageImages.push(imageUrl);
         }
+
+        if (!active) return;
 
         setPages(pageImages);
         setCurrentPage(pageCount > 0 ? 1 : 0);
         setLoading(false);
       } catch (err) {
         console.error("Erro ao carregar PDF:", err);
-        setError("Erro ao carregar o PDF. Tente novamente.");
-        setLoading(false);
+        if (active) {
+          setError("Erro ao carregar o PDF. Tente novamente.");
+          setLoading(false);
+        }
       }
-    };
-
-    if (id) {
-      initReader();
     }
+
+    initReader();
+
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   const destroyPageFlip = () => {
@@ -161,7 +162,7 @@ export default function Leitor() {
       try {
         instance.destroy();
       } catch {
-        // Ignora falhas do teardown da biblioteca.
+        // Ignora falhas de teardown da biblioteca.
       }
     }
 
@@ -212,7 +213,7 @@ export default function Leitor() {
       pages.forEach((imgSrc, idx) => {
         const div = document.createElement("div");
         div.className = "page";
-        div.innerHTML = `<img src="${imgSrc}" alt="Página ${idx + 1}" style="width: 100%; height: 100%; object-fit: contain;" />`;
+        div.innerHTML = `<img src="${imgSrc}" alt="Pagina ${idx + 1}" style="width: 100%; height: 100%; object-fit: contain;" />`;
         flipRef.current!.appendChild(div);
       });
 
@@ -246,7 +247,7 @@ export default function Leitor() {
         try {
           pf.destroy();
         } catch {
-          // Ignora se a troca de sessão ocorrer durante a inicialização.
+          // Ignora se a troca de sessao ocorrer durante a inicializacao.
         }
         return;
       }
@@ -326,14 +327,11 @@ export default function Leitor() {
   }
 
   function downloadPdf() {
-    if (!id) return;
-
-    const pdf = getPdf(id);
-    if (!pdf) return;
+    if (!edicao?.pdfUrl) return;
 
     const a = document.createElement("a");
-    a.href = pdf;
-    a.download = `${getEdicaoById(id)?.titulo ?? "edicao"}.pdf`;
+    a.href = edicao.pdfUrl;
+    a.download = `${edicao.titulo || "edicao"}.pdf`;
     a.click();
   }
 
@@ -500,13 +498,13 @@ export default function Leitor() {
       <div className="flex items-center justify-between border-b border-border/40 px-5 py-3">
         <div>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
-            Diário da Tarde
+            Diario da Tarde
           </p>
-          {id && (
+          {edicao && (
             <p className="font-serif text-base text-foreground">
-              {getEdicaoById(id)?.titulo}
+              {edicao.titulo}
               <span className="ml-2 text-xs text-muted-foreground">
-                · {formatarData(getEdicaoById(id)?.data ?? "")}
+                · {formatarData(edicao.data)}
               </span>
             </p>
           )}
@@ -594,7 +592,7 @@ export default function Leitor() {
             >
               <img
                 src={pages[currentPage - 1]}
-                alt={`Página ${currentPage}`}
+                alt={`Pagina ${currentPage}`}
                 style={{ maxWidth: "100%", maxHeight: "80vh", objectFit: "contain" }}
               />
             </div>
@@ -612,14 +610,14 @@ export default function Leitor() {
                 setCurrentPage((prev) => Math.max(1, prev - 1));
               }
             }}
-            label="Página anterior"
+            label="Pagina anterior"
           >
             <ChevronLeft className="h-4 w-4" />
           </ToolbarBtn>
 
           <div className="px-4 text-sm tabular-nums text-muted-foreground">
-            Pág. <span className="text-foreground">{currentPage || "—"}</span> /{" "}
-            {totalPages || "—"}
+            Pag. <span className="text-foreground">{currentPage || "-"}</span> /{" "}
+            {totalPages || "-"}
           </div>
 
           <ToolbarBtn
@@ -630,7 +628,7 @@ export default function Leitor() {
                 setCurrentPage((prev) => Math.min(totalPages, prev + 1));
               }
             }}
-            label="Próxima página"
+            label="Proxima pagina"
           >
             <ChevronRight className="h-4 w-4" />
           </ToolbarBtn>

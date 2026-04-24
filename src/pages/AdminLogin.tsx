@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock, User, ArrowLeft, Loader2 } from "lucide-react";
 import Logo from "@/components/Logo";
-import { ADMIN_PASS, ADMIN_USER, loginAdmin } from "@/lib/auth";
+import { loginAdmin } from "@/lib/auth";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -12,29 +12,27 @@ export default function AdminLogin() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
-    setTimeout(() => {
-      if (user === ADMIN_USER && pass === ADMIN_PASS) {
-        loginAdmin();
-        navigate("/admin", { replace: true });
-      } else {
-        setError("Usuário ou senha incorretos");
-        setLoading(false);
-      }
-    }, 600);
+
+    try {
+      await loginAdmin(user, pass);
+      navigate("/admin", { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Usuario ou senha incorretos");
+      setLoading(false);
+    }
   }
 
   return (
-    <div className="min-h-screen w-full bg-background relative overflow-hidden grid place-items-center px-4 py-10">
-      {/* decorativo */}
-      <div className="pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
+    <div className="relative grid min-h-screen w-full place-items-center overflow-hidden bg-background px-4 py-10">
+      <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-accent/10 blur-3xl" />
 
       <div className="relative w-full max-w-md">
-        <div className="rounded-2xl border border-border/60 bg-card/60 p-8 backdrop-blur-xl shadow-[var(--shadow-deep)]">
+        <div className="rounded-2xl border border-border/60 bg-card/60 p-8 shadow-[var(--shadow-deep)] backdrop-blur-xl">
           <div className="flex justify-center">
             <Logo />
           </div>
@@ -43,13 +41,13 @@ export default function AdminLogin() {
             <h1 className="font-serif text-3xl text-foreground">
               Acesso Administrativo
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">Diário da Tarde</p>
+            <p className="mt-1 text-sm text-muted-foreground">Diario da Tarde</p>
           </div>
 
           <form onSubmit={handleSubmit} className="mt-7 space-y-4">
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Usuário
+                Usuario
               </label>
               <div className="relative">
                 <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -90,7 +88,6 @@ export default function AdminLogin() {
 
             {error && (
               <div
-                key={error + Date.now()}
                 role="alert"
                 className="animate-in fade-in slide-in-from-top-1 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-primary"
               >
@@ -105,7 +102,7 @@ export default function AdminLogin() {
             >
               {loading ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Entrando…
+                  <Loader2 className="h-4 w-4 animate-spin" /> Entrando...
                 </>
               ) : (
                 "Entrar"

@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+server/uploads/pdfs/*
+!server/uploads/.gitkeep
 
 # Editor directories and files
 .vscode/*

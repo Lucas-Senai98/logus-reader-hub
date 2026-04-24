@@ -13,7 +13,24 @@ export default function Edicoes() {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    setEdicoes(getEdicoes());
+    let active = true;
+
+    async function load() {
+      try {
+        const data = await getEdicoes();
+        if (active) {
+          setEdicoes(data);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar edicoes:", error);
+      }
+    }
+
+    load();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const filtered = useMemo(() => {
@@ -23,7 +40,7 @@ export default function Edicoes() {
       (e) =>
         String(e.numero).includes(q) ||
         e.titulo.toLowerCase().includes(q) ||
-        e.data.includes(q)
+        e.data.includes(q),
     );
   }, [edicoes, query]);
 
@@ -41,10 +58,10 @@ export default function Edicoes() {
           Acervo completo
         </span>
         <h1 className="mt-3 font-serif text-5xl text-foreground md:text-6xl">
-          Todas as Edições
+          Todas as Edicoes
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-          Navegue por todo o histórico do Diário da Tarde. Clique em uma edição
+          Navegue por todo o historico do Diario da Tarde. Clique em uma edicao
           para abrir no leitor flipbook.
         </p>
       </header>
@@ -55,7 +72,7 @@ export default function Edicoes() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por número, título ou data…"
+            placeholder="Buscar por numero, titulo ou data..."
             className="h-12 w-full rounded-full border border-border bg-card pl-11 pr-5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
@@ -91,9 +108,7 @@ export default function Edicoes() {
       ) : (
         <div className="mt-16 grid place-items-center rounded-2xl border border-dashed border-border bg-card p-16 text-center">
           <Newspaper className="h-14 w-14 text-muted-foreground" />
-          <p className="mt-4 text-muted-foreground">
-            Nenhuma edição encontrada.
-          </p>
+          <p className="mt-4 text-muted-foreground">Nenhuma edicao encontrada.</p>
         </div>
       )}
     </div>

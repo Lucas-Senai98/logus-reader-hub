@@ -29,13 +29,12 @@ import {
   formatarData,
   getEdicoes,
   removeEdicao,
-  savePdf,
 } from "@/lib/storage";
 import { logoutAdmin } from "@/lib/auth";
 import Logo from "@/components/Logo";
 import { toast } from "sonner";
 
-const MAX_PDF_BYTES = 50 * 1024 * 1024; // 50MB
+const MAX_PDF_BYTES = 50 * 1024 * 1024;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -43,40 +42,38 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
-function getPdfSizeBytes(id: string): number {
-  const raw = localStorage.getItem(`diario_pdf_${id}`);
-  if (!raw) return 0;
-  // rough size: base64 length * 0.75
-  const commaIdx = raw.indexOf(",");
-  const b64 = commaIdx >= 0 ? raw.slice(commaIdx + 1) : raw;
-  return Math.floor(b64.length * 0.75);
-}
-
 export default function Admin() {
   const navigate = useNavigate();
   const [edicoes, setEdicoes] = useState<Edicao[]>([]);
   const [now, setNow] = useState(new Date());
 
-  // formulário
   const [titulo, setTitulo] = useState("");
   const [numero, setNumero] = useState<number | "">("");
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
-  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
-  const [pdfFileName, setPdfFileName] = useState<string>("");
-  const [pdfFileSize, setPdfFileSize] = useState<number>(0);
-  const [pdfProgress, setPdfProgress] = useState<number>(0);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfFileName, setPdfFileName] = useState("");
+  const [pdfFileSize, setPdfFileSize] = useState(0);
+  const [pdfProgress, setPdfProgress] = useState(0);
   const [pdfReading, setPdfReading] = useState(false);
   const [capaDataUrl, setCapaDataUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loadingEdicoes, setLoadingEdicoes] = useState(true);
 
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const capaInputRef = useRef<HTMLInputElement>(null);
 
-  // confirmação de exclusão
   const [deleteTarget, setDeleteTarget] = useState<Edicao | null>(null);
 
-  function refresh() {
-    setEdicoes(getEdicoes());
+  async function refresh() {
+    try {
+      setLoadingEdicoes(true);
+      setEdicoes(await getEdicoes());
+    } catch (error) {
+      console.error("Erro ao carregar edicoes:", error);
+      toast.error("Nao foi possivel carregar as edicoes.");
+    } finally {
+      setLoadingEdicoes(false);
+    }
   }
 
   useEffect(() => {
@@ -87,67 +84,58 @@ export default function Admin() {
 
   const sorted = useMemo(
     () => [...edicoes].sort((a, b) => (b.data > a.data ? 1 : -1)),
-    [edicoes]
+    [edicoes],
   );
   const ultima = sorted[0];
 
-  function handleLogout() {
-    logoutAdmin();
+  async function handleLogout() {
+    await logoutAdmin();
     navigate("/");
   }
 
   function onPdf(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (f.type !== "application/pdf") {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
       toast.error("Selecione um arquivo PDF.");
-      return;
-    }
-    if (f.size > MAX_PDF_BYTES) {
-      toast.error("Arquivo excede o limite de 50MB.");
       e.target.value = "";
       return;
     }
-    setPdfFileName(f.name);
-    setPdfFileSize(f.size);
-    setPdfProgress(0);
-    setPdfReading(true);
-    setPdfDataUrl(null);
 
-    const reader = new FileReader();
-    reader.onprogress = (evt) => {
-      if (evt.lengthComputable) {
-        setPdfProgress(Math.round((evt.loaded / evt.total) * 100));
-      }
-    };
-    reader.onload = () => {
-      setPdfDataUrl(reader.result as string);
-      setPdfProgress(100);
-      setPdfReading(false);
-    };
-    reader.onerror = () => {
-      toast.error("Erro ao ler o arquivo.");
-      setPdfReading(false);
-    };
-    reader.readAsDataURL(f);
+    if (file.size > MAX_PDF_BYTES) {
+      toast.error("Arquivo excede o limite de 50 MB.");
+      e.target.value = "";
+      return;
+    }
+
+    setPdfReading(true);
+    setPdfFile(file);
+    setPdfFileName(file.name);
+    setPdfFileSize(file.size);
+    setPdfProgress(100);
+    setPdfReading(false);
   }
 
   function onCapa(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
     const reader = new FileReader();
     reader.onload = () => setCapaDataUrl(reader.result as string);
-    reader.readAsDataURL(f);
+    reader.onerror = () => toast.error("Erro ao ler a imagem de capa.");
+    reader.readAsDataURL(file);
   }
 
   function resetForm() {
     setTitulo("");
     setNumero("");
     setData(new Date().toISOString().slice(0, 10));
-    setPdfDataUrl(null);
+    setPdfFile(null);
     setPdfFileName("");
     setPdfFileSize(0);
     setPdfProgress(0);
+    setPdfReading(false);
     setCapaDataUrl(null);
     if (pdfInputRef.current) pdfInputRef.current.value = "";
     if (capaInputRef.current) capaInputRef.current.value = "";
@@ -155,48 +143,58 @@ export default function Admin() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!titulo || numero === "" || !data || !pdfDataUrl) {
+
+    if (!titulo || numero === "" || !data || !pdfFile) {
       toast.error("Preencha todos os campos e anexe o PDF.");
       return;
     }
+
     setSaving(true);
+
     try {
-      const novo = addEdicao({
+      await addEdicao({
         titulo,
         numero: Number(numero),
         data,
+        pdfFile,
         capaBase64: capaDataUrl ?? undefined,
-        pdfKey: "",
       });
-      savePdf(novo.id, pdfDataUrl);
-      const list = getEdicoes().map((x) =>
-        x.id === novo.id ? { ...x, pdfKey: `diario_pdf_${novo.id}` } : x
-      );
-      localStorage.setItem("diario_edicoes", JSON.stringify(list));
-      toast.success("Edição publicada com sucesso!");
+
+      toast.success("Edicao publicada com sucesso!");
       resetForm();
-      refresh();
-    } catch (err) {
-      console.error(err);
+      await refresh();
+    } catch (error) {
+      console.error(error);
       toast.error(
-        "Não foi possível salvar. O PDF pode ter excedido o limite do localStorage."
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel salvar a edicao.",
       );
     } finally {
       setSaving(false);
     }
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!deleteTarget) return;
-    removeEdicao(deleteTarget.id);
-    toast.success(`Edição nº ${deleteTarget.numero} excluída.`);
-    setDeleteTarget(null);
-    refresh();
+
+    try {
+      await removeEdicao(deleteTarget.id);
+      toast.success(`Edicao n ${deleteTarget.numero} excluida.`);
+      setDeleteTarget(null);
+      await refresh();
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel excluir a edicao.",
+      );
+    }
   }
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header do painel */}
       <header className="sticky top-0 z-40 border-b-2 border-primary bg-[#1a1a2e]/95 backdrop-blur">
         <div className="container flex h-[72px] items-center justify-between gap-4">
           <Logo />
@@ -204,9 +202,7 @@ export default function Admin() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-accent">
               Painel
             </p>
-            <p className="font-serif text-base text-foreground">
-              Administrativo
-            </p>
+            <p className="font-serif text-base text-foreground">Administrativo</p>
           </div>
           <button
             onClick={handleLogout}
@@ -218,20 +214,15 @@ export default function Admin() {
       </header>
 
       <main className="container py-10">
-        {/* Cards de resumo */}
         <section className="grid gap-4 sm:grid-cols-3">
           <SummaryCard
-            label="Edições publicadas"
+            label="Edicoes publicadas"
             value={String(edicoes.length)}
             icon={<Newspaper className="h-5 w-5" />}
           />
           <SummaryCard
-            label="Última edição"
-            value={
-              ultima
-                ? `Nº ${ultima.numero}`
-                : "—"
-            }
+            label="Ultima edicao"
+            value={ultima ? `N ${ultima.numero}` : "-"}
             sub={ultima ? formatarData(ultima.data) : "Nenhuma"}
             icon={<FileText className="h-5 w-5" />}
           />
@@ -251,27 +242,26 @@ export default function Admin() {
         </section>
 
         <section className="mt-10 grid gap-8 lg:grid-cols-5">
-          {/* Formulário */}
           <form
             onSubmit={onSubmit}
             className="rounded-2xl border border-border bg-card p-6 lg:col-span-2"
           >
             <h2 className="flex items-center gap-2 font-serif text-2xl text-foreground">
-              <Plus className="h-5 w-5 text-accent" /> Publicar Nova Edição
+              <Plus className="h-5 w-5 text-accent" /> Publicar Nova Edicao
             </h2>
 
             <div className="mt-5 space-y-4">
-              <Field label="Título da edição">
+              <Field label="Titulo da edicao">
                 <input
                   value={titulo}
                   onChange={(e) => setTitulo(e.target.value)}
-                  placeholder="Edição nº 246"
+                  placeholder="Edicao n 246"
                   className="h-11 w-full rounded-md border border-border bg-background px-4 text-sm focus:border-primary focus:outline-none"
                 />
               </Field>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Número">
+                <Field label="Numero">
                   <input
                     type="number"
                     value={numero === "" ? "" : numero}
@@ -282,7 +272,7 @@ export default function Admin() {
                     className="h-11 w-full rounded-md border border-border bg-background px-4 text-sm focus:border-primary focus:outline-none"
                   />
                 </Field>
-                <Field label="Data de publicação">
+                <Field label="Data de publicacao">
                   <input
                     type="date"
                     value={data}
@@ -292,8 +282,7 @@ export default function Admin() {
                 </Field>
               </div>
 
-              {/* Upload PDF */}
-              <Field label="PDF da edição *">
+              <Field label="PDF da edicao *">
                 <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-dashed border-border bg-background/40 px-4 py-3 text-sm text-muted-foreground transition-colors hover:border-accent hover:text-accent">
                   <span className="flex items-center gap-2">
                     <Upload className="h-4 w-4" />
@@ -318,12 +307,11 @@ export default function Admin() {
                     />
                   </div>
                 )}
-                {pdfDataUrl && !pdfReading && (
-                  <p className="mt-1 text-xs text-accent">Arquivo carregado ✓</p>
+                {pdfFile && !pdfReading && (
+                  <p className="mt-1 text-xs text-accent">Arquivo pronto para upload</p>
                 )}
               </Field>
 
-              {/* Upload Capa */}
               <Field label="Imagem de capa (opcional)">
                 <label className="flex cursor-pointer items-center gap-3 rounded-md border border-dashed border-border bg-background/40 px-4 py-3 text-sm text-muted-foreground transition-colors hover:border-accent hover:text-accent">
                   <ImageIcon className="h-4 w-4" />
@@ -339,7 +327,7 @@ export default function Admin() {
                 {capaDataUrl && (
                   <img
                     src={capaDataUrl}
-                    alt="Pré-visualização"
+                    alt="Pre-visualizacao"
                     className="mt-2 h-24 w-auto rounded-md border border-border object-cover"
                   />
                 )}
@@ -352,135 +340,120 @@ export default function Admin() {
               >
                 {saving ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Publicando…
+                    <Loader2 className="h-4 w-4 animate-spin" /> Publicando...
                   </>
                 ) : (
-                  "Publicar Edição"
+                  "Publicar Edicao"
                 )}
               </button>
             </div>
           </form>
 
-          {/* Lista de edições */}
           <div className="rounded-2xl border border-border bg-card p-6 lg:col-span-3">
             <h2 className="font-serif text-2xl text-foreground">
-              Edições cadastradas
+              Edicoes cadastradas
             </h2>
 
-            {sorted.length === 0 ? (
+            {loadingEdicoes ? (
+              <div className="mt-6 grid place-items-center rounded-xl border border-dashed border-border p-10 text-center">
+                <Loader2 className="h-10 w-10 animate-spin text-accent" />
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Carregando edicoes...
+                </p>
+              </div>
+            ) : sorted.length === 0 ? (
               <div className="mt-6 grid place-items-center rounded-xl border border-dashed border-border p-10 text-center">
                 <Newspaper className="h-10 w-10 text-muted-foreground" />
                 <p className="mt-3 text-sm text-muted-foreground">
-                  Nenhuma edição cadastrada.
+                  Nenhuma edicao cadastrada.
                 </p>
               </div>
             ) : (
               <>
-                {/* Tabela desktop */}
                 <div className="mt-5 hidden overflow-x-auto md:block">
                   <table className="w-full text-sm">
                     <thead className="text-xs uppercase tracking-widest text-muted-foreground">
                       <tr className="border-b border-border">
-                        <th className="py-3 text-left">Nº</th>
-                        <th className="py-3 text-left">Título</th>
+                        <th className="py-3 text-left">N</th>
+                        <th className="py-3 text-left">Titulo</th>
                         <th className="py-3 text-left">Data</th>
                         <th className="py-3 text-left">PDF</th>
-                        <th className="py-3 text-right">Ações</th>
+                        <th className="py-3 text-right">Acoes</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {sorted.map((e) => {
-                        const size = getPdfSizeBytes(e.id);
-                        return (
-                          <tr key={e.id} className="border-b border-border/60">
-                            <td className="py-3 font-medium text-foreground">
-                              {e.numero}
-                            </td>
-                            <td className="py-3 text-muted-foreground">
-                              {e.titulo}
-                              {e.demo && (
-                                <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
-                                  Demo
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3 text-muted-foreground">
-                              {formatarData(e.data)}
-                            </td>
-                            <td className="py-3 text-muted-foreground">
-                              {size > 0 ? formatBytes(size) : "—"}
-                            </td>
-                            <td className="py-3">
-                              <div className="flex justify-end gap-2">
-                                <a
-                                  href={`#/ler/${e.id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
-                                >
-                                  <Eye className="h-3 w-3" /> Visualizar
-                                </a>
-                                <button
-                                  onClick={() => setDeleteTarget(e)}
-                                  className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary"
-                                >
-                                  <Trash2 className="h-3 w-3" /> Excluir
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {sorted.map((e) => (
+                        <tr key={e.id} className="border-b border-border/60">
+                          <td className="py-3 font-medium text-foreground">{e.numero}</td>
+                          <td className="py-3 text-muted-foreground">{e.titulo}</td>
+                          <td className="py-3 text-muted-foreground">
+                            {formatarData(e.data)}
+                          </td>
+                          <td className="py-3 text-muted-foreground">
+                            {e.pdfSizeBytes ? formatBytes(e.pdfSizeBytes) : "-"}
+                          </td>
+                          <td className="py-3">
+                            <div className="flex justify-end gap-2">
+                              <a
+                                href={`#/ler/${e.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
+                              >
+                                <Eye className="h-3 w-3" /> Visualizar
+                              </a>
+                              <button
+                                onClick={() => setDeleteTarget(e)}
+                                className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary"
+                              >
+                                <Trash2 className="h-3 w-3" /> Excluir
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
 
-                {/* Cards mobile */}
                 <div className="mt-5 space-y-3 md:hidden">
-                  {sorted.map((e) => {
-                    const size = getPdfSizeBytes(e.id);
-                    return (
-                      <div
-                        key={e.id}
-                        className="rounded-xl border border-border bg-background/40 p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs uppercase tracking-widest text-accent">
-                              Nº {e.numero}
-                            </p>
-                            <p className="mt-1 font-serif text-lg text-foreground">
-                              {e.titulo}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatarData(e.data)} · {size > 0 ? formatBytes(size) : "sem PDF"}
-                            </p>
-                          </div>
-                          {e.demo && (
-                            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
-                              Demo
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-3 flex gap-2">
-                          <a
-                            href={`#/ler/${e.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
-                          >
-                            <Eye className="h-3 w-3" /> Visualizar
-                          </a>
-                          <button
-                            onClick={() => setDeleteTarget(e)}
-                            className="flex-1 inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary"
-                          >
-                            <Trash2 className="h-3 w-3" /> Excluir
-                          </button>
+                  {sorted.map((e) => (
+                    <div
+                      key={e.id}
+                      className="rounded-xl border border-border bg-background/40 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-widest text-accent">
+                            N {e.numero}
+                          </p>
+                          <p className="mt-1 font-serif text-lg text-foreground">
+                            {e.titulo}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatarData(e.data)} ·{" "}
+                            {e.pdfSizeBytes ? formatBytes(e.pdfSizeBytes) : "sem PDF"}
+                          </p>
                         </div>
                       </div>
-                    );
-                  })}
+                      <div className="mt-3 flex gap-2">
+                        <a
+                          href={`#/ler/${e.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
+                        >
+                          <Eye className="h-3 w-3" /> Visualizar
+                        </a>
+                        <button
+                          onClick={() => setDeleteTarget(e)}
+                          className="flex-1 inline-flex items-center justify-center gap-1 rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary"
+                        >
+                          <Trash2 className="h-3 w-3" /> Excluir
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </>
             )}
@@ -493,11 +466,11 @@ export default function Admin() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-primary" />
-              Excluir edição
+              Excluir edicao
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir a Edição nº {deleteTarget?.numero}?
-              Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir a Edicao n {deleteTarget?.numero}?
+              Esta acao nao pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

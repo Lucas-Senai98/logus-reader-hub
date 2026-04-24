@@ -1,90 +1,117 @@
-import { v4 as uuidv4 } from "uuid";
-
 export interface Edicao {
   id: string;
   numero: number;
   titulo: string;
-  data: string; // ISO yyyy-mm-dd
+  data: string;
   capaBase64?: string;
-  pdfKey?: string; // chave no localStorage onde o base64 do PDF está salvo
-  demo?: boolean;
+  pdfUrl?: string;
+  pdfFileName?: string;
+  pdfSizeBytes?: number;
+  createdAt?: string;
 }
 
-const KEY = "diario_edicoes";
+export interface CreateEdicaoInput {
+  titulo: string;
+  numero: number;
+  data: string;
+  pdfFile: File;
+  capaBase64?: string;
+}
 
-const SEED: Edicao[] = [
-  {
-    id: "demo-243",
-    numero: 243,
-    titulo: "Edição nº 243",
-    data: "2026-02-15",
-    demo: true,
-  },
-  {
-    id: "demo-244",
-    numero: 244,
-    titulo: "Edição nº 244",
-    data: "2026-03-10",
-    demo: true,
-  },
-  {
-    id: "demo-245",
-    numero: 245,
-    titulo: "Edição nº 245",
-    data: "2026-04-23",
-    demo: true,
-  },
-];
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
-export function getEdicoes(): Edicao[] {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) {
-      localStorage.setItem(KEY, JSON.stringify(SEED));
-      return [...SEED];
+function getApiUrl(path: string) {
+  return `${API_BASE}${path}`;
+}
+
+async function parseResponse<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    let message = "Nao foi possivel concluir a requisicao.";
+
+    try {
+      const data = (await response.json()) as { error?: string };
+      if (data?.error) {
+        message = data.error;
+      }
+    } catch {
+      // fallback para mensagem padrao
     }
-    const parsed = JSON.parse(raw) as Edicao[];
-    return parsed.sort((a, b) => b.numero - a.numero);
-  } catch {
-    return [...SEED];
+
+    throw new Error(message);
   }
+
+  return response.json() as Promise<T>;
 }
 
-export function saveEdicoes(list: Edicao[]) {
-  localStorage.setItem(KEY, JSON.stringify(list));
+function getAuthHeaders() {
+  const token = sessionStorage.getItem("diario_admin_auth_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export function addEdicao(e: Omit<Edicao, "id">): Edicao {
-  const list = getEdicoes();
-  const novo: Edicao = { ...e, id: uuidv4() };
-  list.push(novo);
-  saveEdicoes(list);
-  return novo;
+export async function getEdicoes(): Promise<Edicao[]> {
+  const response = await fetch(getApiUrl("/api/edicoes"));
+  return parseResponse<Edicao[]>(response);
 }
 
-export function removeEdicao(id: string) {
-  const list = getEdicoes().filter((e) => e.id !== id);
-  saveEdicoes(list);
-  // remove pdf
-  const pdfKey = `diario_pdf_${id}`;
-  localStorage.removeItem(pdfKey);
+export async function getEdicaoById(id: string): Promise<Edicao | undefined> {
+  const response = await fetch(getApiUrl(`/api/edicoes/${id}`));
+
+  if (response.status === 404) {
+    return undefined;
+  }
+
+  return parseResponse<Edicao>(response);
 }
 
-export function getEdicaoById(id: string): Edicao | undefined {
-  return getEdicoes().find((e) => e.id === id);
+export async function addEdicao(input: CreateEdicaoInput): Promise<Edicao> {
+  const formData = new FormData();
+  formData.append("titulo", input.titulo);
+  formData.append("numero", String(input.numero));
+  formData.append("data", input.data);
+  formData.append("pdf", input.pdfFile);
+
+  if (input.capaBase64) {
+    formData.append("capaBase64", input.capaBase64);
+  }
+
+  const response = await fetch(getApiUrl("/api/edicoes"), {
+    method: "POST",
+    headers: {
+      ...getAuthHeaders(),
+    },
+    body: formData,
+  });
+
+  return parseResponse<Edicao>(response);
 }
 
-export function getPdf(id: string): string | null {
-  return localStorage.getItem(`diario_pdf_${id}`);
-}
+export async function removeEdicao(id: string): Promise<void> {
+  const response = await fetch(getApiUrl(`/api/edicoes/${id}`), {
+    method: "DELETE",
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
 
-export function savePdf(id: string, dataUrl: string) {
-  localStorage.setItem(`diario_pdf_${id}`, dataUrl);
+  if (!response.ok) {
+    let message = "Nao foi possivel excluir a edicao.";
+
+    try {
+      const data = (await response.json()) as { error?: string };
+      if (data?.error) {
+        message = data.error;
+      }
+    } catch {
+      // fallback para mensagem padrao
+    }
+
+    throw new Error(message);
+  }
 }
 
 export function formatarData(iso: string): string {
   try {
-    const d = new Date(iso + "T12:00:00");
+    const d = new Date(`${iso}T12:00:00`);
     return d.toLocaleDateString("pt-BR", {
       day: "numeric",
       month: "long",

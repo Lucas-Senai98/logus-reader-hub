@@ -9,7 +9,24 @@ export default function Home() {
   const [edicoes, setEdicoes] = useState<Edicao[]>([]);
 
   useEffect(() => {
-    setEdicoes(getEdicoes());
+    let active = true;
+
+    async function load() {
+      try {
+        const data = await getEdicoes();
+        if (active) {
+          setEdicoes(data);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar edicoes:", error);
+      }
+    }
+
+    load();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const ultima = edicoes[0];
@@ -20,7 +37,6 @@ export default function Home() {
 
   return (
     <>
-      {/* HERO */}
       <section className="relative -mt-[72px] flex min-h-screen items-center overflow-hidden">
         <div className="absolute inset-0">
           <img
@@ -39,7 +55,7 @@ export default function Home() {
           <div className="max-w-3xl space-y-6 animate-fade-in-up">
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-primary-foreground backdrop-blur">
               <span className="h-2 w-2 rounded-full bg-primary animate-pulse-dot" />
-              Edição mais recente disponível
+              Edicao mais recente disponivel
             </span>
             <h1 className="font-serif text-5xl font-bold leading-[1.05] text-foreground text-balance md:text-7xl">
               O Jornal da sua
@@ -47,8 +63,8 @@ export default function Home() {
               <span className="text-accent">Cidade</span>
             </h1>
             <p className="max-w-xl text-lg text-muted-foreground md:text-xl">
-              Transparência e imparcialidade para levar as notícias que importam
-              até você.
+              Transparencia e imparcialidade para levar as noticias que importam
+              ate voce.
             </p>
             <div className="flex flex-wrap gap-4 pt-2">
               {ultima && (
@@ -56,14 +72,14 @@ export default function Home() {
                   to={`/ler/${ultima.id}`}
                   className="inline-flex items-center gap-2 rounded-md bg-primary px-7 py-3.5 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-red)] transition-transform hover:-translate-y-0.5"
                 >
-                  <BookOpen className="h-4 w-4" /> Ler Última Edição
+                  <BookOpen className="h-4 w-4" /> Ler Ultima Edicao
                 </Link>
               )}
               <Link
                 to="/edicoes"
                 className="inline-flex items-center gap-2 rounded-md border border-foreground/40 bg-background/20 px-7 py-3.5 text-sm font-semibold text-foreground backdrop-blur transition-colors hover:border-foreground hover:bg-foreground/10"
               >
-                Ver Todas as Edições <ArrowRight className="h-4 w-4" />
+                Ver Todas as Edicoes <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>
@@ -77,14 +93,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ÚLTIMA EDIÇÃO EM DESTAQUE */}
       <section className="bg-card py-24">
         <div className="container">
           <div ref={refUltima} className="reveal mx-auto max-w-3xl">
-            <SectionHeader
-              eyebrow="Em destaque"
-              title="Última Edição"
-            />
+            <SectionHeader eyebrow="Em destaque" title="Ultima Edicao" />
 
             {ultima ? (
               <article className="mt-10 overflow-hidden rounded-2xl border border-border bg-background shadow-[var(--shadow-deep)]">
@@ -100,29 +112,27 @@ export default function Home() {
                       <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-4 text-muted-foreground">
                         <Newspaper className="h-20 w-20 opacity-40" />
                         <span className="font-serif text-3xl text-foreground/70">
-                          Nº {ultima.numero}
+                          N {ultima.numero}
                         </span>
                       </div>
                     )}
                   </div>
                   <div className="flex flex-col justify-center gap-5 p-8 md:p-10">
                     <span className="inline-flex w-fit items-center gap-2 rounded-full bg-primary px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-primary-foreground">
-                      Última Edição
+                      Ultima Edicao
                     </span>
                     <h3 className="font-serif text-3xl text-foreground md:text-4xl">
                       {ultima.titulo}
                     </h3>
                     <p className="text-sm text-muted-foreground">
                       Publicada em{" "}
-                      <span className="text-accent">
-                        {formatarData(ultima.data)}
-                      </span>
+                      <span className="text-accent">{formatarData(ultima.data)}</span>
                     </p>
                     <Link
                       to={`/ler/${ultima.id}`}
                       className="mt-2 inline-flex w-fit items-center gap-2 rounded-md bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-red-soft)] transition-transform hover:-translate-y-0.5"
                     >
-                      📖 Abrir Leitor
+                      Abrir Leitor
                     </Link>
                   </div>
                 </div>
@@ -131,7 +141,7 @@ export default function Home() {
               <div className="mt-10 grid place-items-center rounded-2xl border border-dashed border-border bg-background p-16 text-center">
                 <Newspaper className="h-14 w-14 text-muted-foreground" />
                 <p className="mt-4 text-muted-foreground">
-                  Nenhuma edição disponível ainda.
+                  Nenhuma edicao disponivel ainda.
                 </p>
               </div>
             )}
@@ -139,11 +149,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* GRADE DE EDIÇÕES */}
       <section className="py-24">
         <div className="container">
           <div ref={refGrid} className="reveal">
-            <SectionHeader eyebrow="Arquivo" title="Edições anteriores" />
+            <SectionHeader eyebrow="Arquivo" title="Edicoes anteriores" />
 
             {anteriores.length > 0 ? (
               <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -153,7 +162,7 @@ export default function Home() {
               </div>
             ) : (
               <p className="mt-12 text-center text-muted-foreground">
-                Em breve, novas edições.
+                Em breve, novas edicoes.
               </p>
             )}
 
