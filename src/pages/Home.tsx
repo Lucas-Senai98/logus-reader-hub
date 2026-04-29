@@ -62,10 +62,6 @@ export default function Home() {
               <br />
               <span className="text-accent">Cidade</span>
             </h1>
-            <p className="max-w-xl text-lg text-muted-foreground md:text-xl">
-              Transparencia e imparcialidade para levar as noticias que importam
-              ate voce.
-            </p>
             <div className="flex flex-wrap gap-4 pt-2">
               {ultima && (
                 <Link
