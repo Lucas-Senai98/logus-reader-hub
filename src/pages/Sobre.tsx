@@ -1,12 +1,5 @@
 import { useReveal } from "@/hooks/use-reveal";
 
-const stats = [
-  { value: "20+", label: "Anos de história" },
-  { value: "500+", label: "Edições publicadas" },
-  { value: "10k", label: "Leitores ativos" },
-  { value: "2", label: "Publicações" },
-];
-
 export default function Sobre() {
   const ref = useReveal<HTMLDivElement>();
 
@@ -32,22 +25,6 @@ export default function Sobre() {
             aproxima pessoas. Por isso seguimos publicando, semana após semana,
             edições que combinam tradição impressa e a praticidade do digital.
           </p>
-
-          <div className="mt-10 grid grid-cols-2 gap-4">
-            {stats.map((s) => (
-              <div
-                key={s.label}
-                className="rounded-xl border border-border bg-card p-5 text-center transition-colors hover:border-primary/50"
-              >
-                <div className="font-serif text-4xl font-bold text-accent">
-                  {s.value}
-                </div>
-                <div className="mt-1 text-xs uppercase tracking-widest text-muted-foreground">
-                  {s.label}
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
 
         <div className="relative">
@@ -57,12 +34,6 @@ export default function Sobre() {
               alt="Redação do jornal"
               className="aspect-[4/5] w-full object-cover"
             />
-          </div>
-          <div className="absolute -bottom-6 -left-6 rounded-xl bg-primary px-6 py-4 text-primary-foreground shadow-[var(--shadow-red)]">
-            <div className="text-xs uppercase tracking-widest opacity-80">
-              Desde
-            </div>
-            <div className="font-serif text-3xl font-bold">2005</div>
           </div>
         </div>
       </div>

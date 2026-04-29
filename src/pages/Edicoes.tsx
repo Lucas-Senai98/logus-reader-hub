@@ -58,7 +58,7 @@ export default function Edicoes() {
           Acervo completo
         </span>
         <h1 className="mt-3 font-serif text-5xl text-foreground md:text-6xl">
-          Todas as Edicoes
+          Todas as Edições
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
           Navegue por todo o historico do Diario da Tarde. Clique em uma edicao
