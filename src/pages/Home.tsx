@@ -55,7 +55,7 @@ export default function Home() {
           <div className="max-w-3xl space-y-6 animate-fade-in-up">
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-primary-foreground backdrop-blur">
               <span className="h-2 w-2 rounded-full bg-primary animate-pulse-dot" />
-              Edicao mais recente disponivel
+                Edição mais recente disponivel
             </span>
             <h1 className="font-serif text-5xl font-bold leading-[1.05] text-foreground text-balance md:text-7xl">
               O Jornal da sua
@@ -72,14 +72,14 @@ export default function Home() {
                   to={`/ler/${ultima.id}`}
                   className="inline-flex items-center gap-2 rounded-md bg-primary px-7 py-3.5 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-red)] transition-transform hover:-translate-y-0.5"
                 >
-                  <BookOpen className="h-4 w-4" /> Ler Ultima Edicao
+                  <BookOpen className="h-4 w-4" /> Ler Ultima Edição
                 </Link>
               )}
               <Link
                 to="/edicoes"
                 className="inline-flex items-center gap-2 rounded-md border border-foreground/40 bg-background/20 px-7 py-3.5 text-sm font-semibold text-foreground backdrop-blur transition-colors hover:border-foreground hover:bg-foreground/10"
               >
-                Ver Todas as Edicoes <ArrowRight className="h-4 w-4" />
+                Ver Todas as Edições <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>
@@ -96,7 +96,7 @@ export default function Home() {
       <section className="bg-card py-24">
         <div className="container">
           <div ref={refUltima} className="reveal mx-auto max-w-3xl">
-            <SectionHeader eyebrow="Em destaque" title="Ultima Edicao" />
+            <SectionHeader eyebrow="Em destaque" title="Ultima Edição" />
 
             {ultima ? (
               <article className="mt-10 overflow-hidden rounded-2xl border border-border bg-background shadow-[var(--shadow-deep)]">
@@ -119,7 +119,7 @@ export default function Home() {
                   </div>
                   <div className="flex flex-col justify-center gap-5 p-8 md:p-10">
                     <span className="inline-flex w-fit items-center gap-2 rounded-full bg-primary px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-primary-foreground">
-                      Ultima Edicao
+                      Ultima Edição
                     </span>
                     <h3 className="font-serif text-3xl text-foreground md:text-4xl">
                       {ultima.titulo}
