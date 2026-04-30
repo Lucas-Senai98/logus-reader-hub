@@ -222,7 +222,7 @@ export default function Leitor() {
         height: Math.floor(pageH),
         size: "fixed" as never,
         maxShadowOpacity: 0.5,
-        showCover: true,
+        showCover: false,
         mobileScrollSupport: true,
         usePortrait: isMobile,
         drawShadow: true,
