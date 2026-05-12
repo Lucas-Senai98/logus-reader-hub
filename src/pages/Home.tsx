@@ -40,8 +40,8 @@ export default function Home() {
       <section className="relative -mt-[72px] flex min-h-screen items-center overflow-hidden">
         <div className="absolute inset-0">
           <img
-            src="https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1600&q=80"
-            alt="Pilha de jornais impressos"
+            src="/banner-diario-da-tarde.png"
+            alt="Jornal Diário da Tarde sobre uma pilha de jornais impressos"
             className="h-full w-full object-cover"
             loading="eager"
           />
