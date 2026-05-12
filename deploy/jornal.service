@@ -8,9 +8,10 @@ User=www-data
 WorkingDirectory=/var/www/jornal
 Environment=NODE_ENV=production
 EnvironmentFile=/var/www/jornal/.env
-ExecStart=/usr/bin/npm start
+ExecStart=/usr/bin/npm run start
 Restart=always
 RestartSec=5
+ReadWritePaths=/var/www/jornal/server/data /var/www/jornal/server/uploads
 
 [Install]
 WantedBy=multi-user.target

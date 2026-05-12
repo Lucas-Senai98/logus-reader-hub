@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import * as pdfjsLib from "pdfjs-dist";
+import type { PDFDocumentProxy } from "pdfjs-dist/types/src/display/api";
 import { PageFlip } from "page-flip";
 import {
   ChevronLeft,
@@ -65,7 +66,7 @@ export default function Leitor() {
     return loadingTask.promise;
   };
 
-  const renderPage = async (pdf: any, pageNumber: number): Promise<string> => {
+  const renderPage = async (pdf: PDFDocumentProxy, pageNumber: number): Promise<string> => {
     const page = await pdf.getPage(pageNumber);
     const renderScale = 1.5;
     const viewport = page.getViewport({ scale: renderScale });
@@ -145,7 +146,7 @@ export default function Leitor() {
     };
   }, [id]);
 
-  const destroyPageFlip = () => {
+  const destroyPageFlip = useCallback(() => {
     pageFlipSessionRef.current += 1;
 
     if (pageFlipInitTimeoutRef.current !== null) {
@@ -169,9 +170,9 @@ export default function Leitor() {
     if (flipRef.current) {
       flipRef.current.innerHTML = "";
     }
-  };
+  }, []);
 
-  const updatePageFlip = () => {
+  const updatePageFlip = useCallback(() => {
     destroyPageFlip();
 
     if (pages.length === 0 || scale > 1 || !flipRef.current || !containerRef.current) {
@@ -254,19 +255,19 @@ export default function Leitor() {
 
       pageFlipRef.current = pf;
     }, 100);
-  };
+  }, [destroyPageFlip, pages, scale]);
 
   useEffect(() => {
     updatePageFlip();
-  }, [pages, scale]);
+  }, [updatePageFlip]);
 
   useEffect(() => {
     return () => {
       destroyPageFlip();
     };
-  }, []);
+  }, [destroyPageFlip]);
 
-  const handlePageFlipNavigation = (direction: "next" | "prev") => {
+  const handlePageFlipNavigation = useCallback((direction: "next" | "prev") => {
     if (scale > 1 || !isPageFlipReady) return false;
 
     const instance = pageFlipRef.current;
@@ -288,7 +289,7 @@ export default function Leitor() {
       console.warn(`Erro ao navegar com PageFlip (${direction}):`, error);
       return false;
     }
-  };
+  }, [isPageFlipReady, scale]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -307,7 +308,7 @@ export default function Leitor() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isPageFlipReady, scale]);
+  }, [handlePageFlipNavigation]);
 
   useEffect(() => {
     function onFs() {

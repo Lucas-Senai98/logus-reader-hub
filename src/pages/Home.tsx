@@ -58,9 +58,9 @@ export default function Home() {
                 Edição mais recente disponivel
             </span>
             <h1 className="font-serif text-5xl font-bold leading-[1.05] text-foreground text-balance md:text-7xl">
-              O Jornal da sua
+                O seu jornal
               <br />
-              <span className="text-accent">Cidade</span>
+                <span className="text-accent">diário</span>
             </h1>
             <div className="flex flex-wrap gap-4 pt-2">
               {ultima && (

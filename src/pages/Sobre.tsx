@@ -15,15 +15,15 @@ export default function Sobre() {
             <span className="text-accent">história</span> e propósito.
           </h1>
           <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-            Há mais de duas décadas, o Diário da Tarde é uma referência em
-            jornalismo local independente. Nosso compromisso é com a verdade,
-            o pluralismo e a comunidade — com pautas próximas e uma cobertura
-            cuidadosa dos assuntos que moldam o cotidiano da nossa cidade.
+            O Diário da Tarde é o jornal vespertino de Grande Circulação nos
+            estados do Rio de Janeiro e de Minas Gerais da empresa Logus
+            Ambiental Ltda. Este novo veículo é um passo adiante em nossa
+            trajetória e compromisso que vem desde 2006 com periódicos locais
+            que chegam a quase duas mil edições.
           </p>
           <p className="mt-4 text-muted-foreground">
-            Acreditamos que jornalismo de qualidade fortalece a democracia e
-            aproxima pessoas. Por isso seguimos publicando, semana após semana,
-            edições que combinam tradição impressa e a praticidade do digital.
+            Nossa missão é informar, publicar e mantê-lo informado com
+            seriedade e compromisso!
           </p>
         </div>
 

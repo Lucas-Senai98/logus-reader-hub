@@ -16,12 +16,17 @@ const dataFile = path.join(dataDir, "edicoes.json");
 const distDir = path.join(rootDir, "dist");
 const maxPdfBytes = 50 * 1024 * 1024;
 
+const isProduction = process.env.NODE_ENV === "production";
 const port = Number(process.env.PORT || 3001);
 const adminUser = process.env.ADMIN_USER || "admin";
-const adminPass = process.env.ADMIN_PASS || "diario2025";
-const authSecret =
-  process.env.ADMIN_SECRET || "troque-esta-chave-secreta-em-producao";
+const adminPass = process.env.ADMIN_PASS || (isProduction ? "" : "diario2025");
+const authSecret = process.env.ADMIN_SECRET || (isProduction ? "" : "troque-esta-chave-secreta-em-producao");
 const tokenTtlMs = Number(process.env.ADMIN_TOKEN_TTL_MS || 1000 * 60 * 60 * 12);
+
+if (isProduction && (!adminPass || !authSecret)) {
+  console.error("Defina ADMIN_PASS e ADMIN_SECRET no ambiente de producao.");
+  process.exit(1);
+}
 
 const app = express();
 
